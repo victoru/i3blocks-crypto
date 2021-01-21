@@ -8,49 +8,71 @@ import sys
 
 PRICE_CHANGE_PERIOD = '1h' # Available: '1h', '24h', '7d'
 PRICE_CHANGE_URGENT_PERCENT = 10
+PAGE_LIMIT = 100
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36'
 
 API_URL = 'https://web-api.coinmarketcap.com/v1/cryptocurrency/listings/latest'
 coin = os.environ.get('BLOCK_INSTANCE', 'bitcoin')
+
+class CoinInfo:
+    def __init__(self, coin, base='USD', period='1h'):
+        convert = ",".join([base, 'BTC'])
+        parameters = {
+            'convert': convert,
+            'cryptocurrency_type': 'coins',
+            'limit': PAGE_LIMIT,
+        }
+        headers = {
+            'Accepts': 'application/json',
+            'Referer': 'https://coinmarketcap.com/',
+            'Origin': 'https://coinmarketcap.com',
+            'User-Agent': '',
+        }
+
+        session = Session()
+        session.headers.update(headers)
+
+        r = session.get(API_URL, params=parameters)
+        data = list(filter(lambda x: x['slug'] == coin, json.loads(r.text)['data']))[0]
+
+        quote = data['quote'][base]
+        self.price = float(quote['price'])
+        self.symbol = data['symbol']
+
+        self.percentChange = float(quote['percent_change_' + period])
+
+    @property
+    def precision(self):
+        if self.price > 100: return 0
+        elif self.price > 0.1: return 2
+        else: return 6
+
+    @property
+    def percentChangeInfo(self):
+        percentChangeFormat = '<span color="{}">{}{:.2f}%</span>'
+        percentChangeInfo = percentChangeFormat.format('#CCCCCC', '', self.percentChange)
+        if self.percentChange > 0:
+            percentChangeInfo = percentChangeFormat.format('#3BB92D', '🠕 ', self.percentChange)
+        elif self.percentChange < 0:
+            percentChangeInfo = percentChangeFormat.format('#F7555E', '🠗 ', self.percentChange)
+        return percentChangeInfo
+
+    @property
+    def fulltext(self):
+        return ('{} {:.' + str(c.precision) + 'f} {}').format(c.symbol, c.price, c.percentChangeInfo)
+
+    @property
+    def shorttext(self):
+        return ('{} {:.' + str(c.precision) + 'f}').format(c.symbol, c.price)
+
 
 base = 'USD'
 if len(sys.argv) > 1:
     base = str(sys.argv[1]).upper()
 
-convert = ",".join([base, 'BTC'])
-parameters = {
-    'convert': convert,
-    'cryptocurrency_type': 'coins',
-    'limit': '100',
-}
-headers = {
-    'Accepts': 'application/json',
-    'Referer': 'https://coinmarketcap.com/',
-    'Origin': 'https://coinmarketcap.com',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36',
-}
+c = CoinInfo(coin, base, PRICE_CHANGE_PERIOD)
+print(c.fulltext)
+print(c.shorttext)
 
-session = Session()
-session.headers.update(headers)
-
-r = session.get(API_URL, params=parameters)
-data = list(filter(lambda x: x['slug'] == coin, json.loads(r.text)['data']))[0]
-
-quote = data['quote'][base]
-price = float(quote['price'])
-
-# Only USD as base currently supported by free version of Coinmarketcap API, AFAIK
-if price > 100: precision = 0
-elif price > 0.1: precision = 2
-else: precision = 6
-
-percentChange = float(quote['percent_change_' + PRICE_CHANGE_PERIOD])
-percentChangeFormat = '<span color="{}">{}{:.2f}%</span>'
-if percentChange > 0: percentChangeInfo = percentChangeFormat.format('#3BB92D', '🠕 ', percentChange)
-elif percentChange == 0: percentChangeInfo = percentChangeFormat.format('#CCCCCC', '', percentChange)
-else: percentChangeInfo = percentChangeFormat.format('#F7555E', '🠗 ', percentChange)
-
-print(('{} {:.' + str(precision) + 'f} {}').format(data['symbol'], price, percentChangeInfo)) # Full Text
-print(('{} {:.' + str(precision) + 'f}').format(data['symbol'], price)) # Short Text
-
-if percentChange > PRICE_CHANGE_URGENT_PERCENT:
+if c.percentChange > PRICE_CHANGE_URGENT_PERCENT:
     exit(33)
