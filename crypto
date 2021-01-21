@@ -2,31 +2,48 @@
 # coding=utf-8
 
 import json
-import requests
+from requests import Session
 import os
 import sys
 
 PRICE_CHANGE_PERIOD = '1h' # Available: '1h', '24h', '7d'
 PRICE_CHANGE_URGENT_PERCENT = 10
 
-API_URL = 'https://api.coinmarketcap.com/v1/ticker/{}/' # CoinMarketCap API
+API_URL = 'https://web-api.coinmarketcap.com/v1/cryptocurrency/listings/latest'
 coin = os.environ.get('BLOCK_INSTANCE', 'bitcoin')
-r = requests.get(API_URL.format(coin))
-data = json.loads(r.text)[0]
 
-base = 'usd'
-if len(sys.argv) > 1: base = sys.argv[1]
+base = 'USD'
+if len(sys.argv) > 1:
+    base = str(sys.argv[1]).upper()
 
-if base.lower() == 'btc':
-    price = float(data['price_btc'])
-    precision = 8
-else:
-    price = float(data['price_usd'])
-    if price > 100: precision = 0
-    elif price > 0.1: precision = 2
-    else: precision = 6
+convert = ",".join([base, 'BTC'])
+parameters = {
+    'convert': convert,
+    'cryptocurrency_type': 'coins',
+    'limit': '100',
+}
+headers = {
+    'Accepts': 'application/json',
+    'Referer': 'https://coinmarketcap.com/',
+    'Origin': 'https://coinmarketcap.com',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36',
+}
 
-percentChange = float(data['percent_change_' + PRICE_CHANGE_PERIOD])
+session = Session()
+session.headers.update(headers)
+
+r = session.get(API_URL, params=parameters)
+data = list(filter(lambda x: x['slug'] == coin, json.loads(r.text)['data']))[0]
+
+quote = data['quote'][base]
+price = float(quote['price'])
+
+# Only USD as base currently supported by free version of Coinmarketcap API, AFAIK
+if price > 100: precision = 0
+elif price > 0.1: precision = 2
+else: precision = 6
+
+percentChange = float(quote['percent_change_' + PRICE_CHANGE_PERIOD])
 percentChangeFormat = '<span color="{}">{}{:.2f}%</span>'
 if percentChange > 0: percentChangeInfo = percentChangeFormat.format('#3BB92D', '', percentChange)
 elif percentChange == 0: percentChangeInfo = percentChangeFormat.format('#CCCCCC', '', percentChange)
