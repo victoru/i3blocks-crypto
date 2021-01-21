@@ -45,9 +45,9 @@ else: precision = 6
 
 percentChange = float(quote['percent_change_' + PRICE_CHANGE_PERIOD])
 percentChangeFormat = '<span color="{}">{}{:.2f}%</span>'
-if percentChange > 0: percentChangeInfo = percentChangeFormat.format('#3BB92D', '', percentChange)
+if percentChange > 0: percentChangeInfo = percentChangeFormat.format('#3BB92D', '🠕 ', percentChange)
 elif percentChange == 0: percentChangeInfo = percentChangeFormat.format('#CCCCCC', '', percentChange)
-else: percentChangeInfo = percentChangeFormat.format('#F7555E', '', percentChange)
+else: percentChangeInfo = percentChangeFormat.format('#F7555E', '🠗 ', percentChange)
 
 print(('{} {:.' + str(precision) + 'f} {}').format(data['symbol'], price, percentChangeInfo)) # Full Text
 print(('{} {:.' + str(precision) + 'f}').format(data['symbol'], price)) # Short Text
